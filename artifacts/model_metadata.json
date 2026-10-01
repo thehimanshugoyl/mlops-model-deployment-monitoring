@@ -1,0 +1,23 @@
+{
+  "model_name": "loan_default_risk_predictor",
+  "model_version": "1.0.0",
+  "features": [
+    "age",
+    "annual_income",
+    "credit_score",
+    "loan_amount",
+    "loan_tenure_months",
+    "debt_to_income_ratio",
+    "employment_years",
+    "has_prior_default"
+  ],
+  "target": "loan_default",
+  "metrics": {
+    "accuracy": 0.9624,
+    "precision": 0.75,
+    "recall": 0.6896551724137931,
+    "f1_score": 0.718562874251497,
+    "roc_auc": 0.978701534873148
+  },
+  "reference_samples": 3750
+}
