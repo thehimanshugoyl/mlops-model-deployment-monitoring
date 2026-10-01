@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import joblib
 import pandas as pd
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Response, status
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from src.drift_detector import DriftDetector
@@ -65,23 +66,34 @@ def load_or_initialize_model():
     """
     global model_pipeline, drift_detector, model_metadata
 
+    if model_pipeline is not None and drift_detector is not None:
+        return
+
+    ref_df = None
     if not MODEL_PATH.exists() or not REF_DATA_PATH.exists():
         logger.warning(
             "Model artifacts not found in %s. Training baseline model...", ARTIFACTS_DIR
         )
         df = generate_synthetic_data(n_samples=5000, random_state=42)
         pipeline, metrics, X_train, _ = train_model(df)
-        save_artifacts(pipeline, X_train, metrics, ARTIFACTS_DIR, version="1.0.0")
-
-    logger.info("Loading model from %s", MODEL_PATH)
-    model_pipeline = joblib.load(MODEL_PATH)
-    ref_df = pd.read_csv(REF_DATA_PATH)
-
-    if METADATA_PATH.exists():
-        with open(METADATA_PATH, "r", encoding="utf-8") as f:
-            model_metadata = json.load(f)
-    else:
+        model_pipeline = pipeline
+        ref_df = X_train
         model_metadata = {"model_version": "1.0.0", "features": FEATURE_NAMES}
+        try:
+            save_artifacts(pipeline, X_train, metrics, ARTIFACTS_DIR, version="1.0.0")
+        except Exception as e:
+            logger.warning("Could not persist model artifacts to disk: %s", e)
+
+    if model_pipeline is None:
+        logger.info("Loading model from %s", MODEL_PATH)
+        model_pipeline = joblib.load(MODEL_PATH)
+        ref_df = pd.read_csv(REF_DATA_PATH)
+
+        if METADATA_PATH.exists():
+            with open(METADATA_PATH, "r", encoding="utf-8") as f:
+                model_metadata = json.load(f)
+        else:
+            model_metadata = {"model_version": "1.0.0", "features": FEATURE_NAMES}
 
     window_size = int(os.getenv("DRIFT_WINDOW_SIZE", "500"))
     min_samples = int(os.getenv("DRIFT_MIN_SAMPLES", "25"))
@@ -190,43 +202,12 @@ class PredictionResponse(BaseModel):
     latency_ms: float
 
 
-def load_or_initialize_model():
+def ensure_model_loaded():
     """
-    Loads saved model artifacts, or trains on-the-fly if artifacts are missing.
+    Ensures model and drift detector are loaded in memory (especially for serverless execution).
     """
-    global model_pipeline, drift_detector, model_metadata
-
-    if not MODEL_PATH.exists() or not REF_DATA_PATH.exists():
-        logger.warning(
-            "Model artifacts not found in %s. Training baseline model...", ARTIFACTS_DIR
-        )
-        df = generate_synthetic_data(n_samples=5000, random_state=42)
-        pipeline, metrics, X_train, _ = train_model(df)
-        save_artifacts(pipeline, X_train, metrics, ARTIFACTS_DIR, version="1.0.0")
-
-    logger.info("Loading model from %s", MODEL_PATH)
-    model_pipeline = joblib.load(MODEL_PATH)
-    ref_df = pd.read_csv(REF_DATA_PATH)
-
-    if METADATA_PATH.exists():
-        with open(METADATA_PATH, "r", encoding="utf-8") as f:
-            model_metadata = json.load(f)
-    else:
-        model_metadata = {"model_version": "1.0.0", "features": FEATURE_NAMES}
-
-    window_size = int(os.getenv("DRIFT_WINDOW_SIZE", "500"))
-    min_samples = int(os.getenv("DRIFT_MIN_SAMPLES", "25"))
-
-    drift_detector = DriftDetector(
-        reference_df=ref_df,
-        feature_names=FEATURE_NAMES,
-        window_size=window_size,
-        min_samples_to_evaluate=min_samples,
-    )
-    logger.info(
-        "Model and DriftDetector initialized successfully. Buffer maxlen=%d",
-        window_size,
-    )
+    if model_pipeline is None or drift_detector is None:
+        load_or_initialize_model()
 
 
 @app.middleware("http")
@@ -260,11 +241,23 @@ def root():
     }
 
 
+@app.get("/api/docs", include_in_schema=False)
+def api_docs_redirect():
+    return RedirectResponse(url="/docs")
+
+
+@app.get("/api/openapi.json", include_in_schema=False)
+def api_openapi_redirect():
+    return RedirectResponse(url="/openapi.json")
+
+
 @app.get("/health", tags=["Health"])
+@app.get("/api/health", include_in_schema=False)
 def health():
     """
     Readiness and health inspection endpoint.
     """
+    ensure_model_loaded()
     if model_pipeline is None or drift_detector is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model not loaded"
@@ -284,6 +277,7 @@ def health():
 
 
 @app.get("/live", tags=["Health"])
+@app.get("/api/live", include_in_schema=False)
 def liveness():
     """
     Kubernetes Liveness Probe.
@@ -292,10 +286,12 @@ def liveness():
 
 
 @app.get("/metrics", tags=["Monitoring"])
+@app.get("/api/metrics", include_in_schema=False)
 def metrics():
     """
     Prometheus scrape endpoint.
     """
+    ensure_model_loaded()
     if drift_detector is not None:
         BUFFER_SIZE.set(drift_detector.get_buffer_size())
     return Response(content=get_metrics_payload(), media_type=CONTENT_TYPE_LATEST)
@@ -315,6 +311,7 @@ def run_drift_background_check():
 
 
 @app.post("/predict", response_model=PredictionResponse, tags=["Inference"])
+@app.post("/api/predict", response_model=PredictionResponse, include_in_schema=False)
 def predict(
     application: LoanApplication,
     background_tasks: BackgroundTasks,
@@ -328,6 +325,9 @@ def predict(
 
 
 @app.post("/predict/batch", response_model=PredictionResponse, tags=["Inference"])
+@app.post(
+    "/api/predict/batch", response_model=PredictionResponse, include_in_schema=False
+)
 def predict_batch(
     batch: LoanApplicationBatch,
     background_tasks: BackgroundTasks,
@@ -335,6 +335,7 @@ def predict_batch(
     """
     Batch prediction endpoint.
     """
+    ensure_model_loaded()
     if model_pipeline is None or drift_detector is None:
         PREDICTION_ERRORS_TOTAL.labels(error_type="model_unloaded").inc()
         raise HTTPException(status_code=503, detail="Model not initialized")
@@ -402,10 +403,12 @@ def predict_batch(
 
 
 @app.get("/drift", tags=["Drift Monitoring"])
+@app.get("/api/drift", include_in_schema=False)
 def get_drift():
     """
     Evaluates statistical drift against baseline reference data and updates Prometheus gauges.
     """
+    ensure_model_loaded()
     if drift_detector is None:
         raise HTTPException(status_code=503, detail="Drift detector not initialized")
 
@@ -417,10 +420,12 @@ def get_drift():
 
 
 @app.post("/drift/reset", tags=["Drift Monitoring"])
+@app.post("/api/drift/reset", include_in_schema=False)
 def reset_drift_buffer():
     """
     Clears the production drift buffer.
     """
+    ensure_model_loaded()
     if drift_detector is not None:
         drift_detector.reset_buffer()
         BUFFER_SIZE.set(0)
