@@ -1,15 +1,3 @@
 {
-  "version": 2,
-  "rewrites": [
-    { "source": "/predict", "destination": "/api/index.py?_vercel_path=/predict" },
-    { "source": "/predict/(.*)", "destination": "/api/index.py?_vercel_path=/predict/$1" },
-    { "source": "/health", "destination": "/api/index.py?_vercel_path=/health" },
-    { "source": "/live", "destination": "/api/index.py?_vercel_path=/live" },
-    { "source": "/metrics", "destination": "/api/index.py?_vercel_path=/metrics" },
-    { "source": "/drift", "destination": "/api/index.py?_vercel_path=/drift" },
-    { "source": "/drift/(.*)", "destination": "/api/index.py?_vercel_path=/drift/$1" },
-    { "source": "/docs", "destination": "/api/index.py?_vercel_path=/docs" },
-    { "source": "/openapi.json", "destination": "/api/index.py?_vercel_path=/openapi.json" },
-    { "source": "/api/(.*)", "destination": "/api/index.py?_vercel_path=/$1" }
-  ]
+  "cleanUrls": true
 }

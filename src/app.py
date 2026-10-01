@@ -19,7 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import joblib
 import pandas as pd
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from src.drift_detector import DriftDetector
@@ -230,7 +230,12 @@ async def monitor_requests(request: Request, call_next):
 
 
 @app.get("/", tags=["General"])
-def root():
+def root(request: Request):
+    accept = request.headers.get("accept", "")
+    index_path = BASE_DIR / "public" / "index.html"
+    if "text/html" in accept and index_path.exists():
+        return FileResponse(index_path)
+
     return {
         "service": "MLOps Model Deployment & Drift Monitoring Service",
         "model_version": model_metadata.get("model_version", "1.0.0"),
@@ -239,6 +244,13 @@ def root():
         "metrics_url": "/metrics",
         "drift_url": "/drift",
     }
+
+
+@app.get("/api/index.py", include_in_schema=False)
+@app.get("/api/index", include_in_schema=False)
+@app.get("/api", include_in_schema=False)
+def api_index_fallback():
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/api/docs", include_in_schema=False)
