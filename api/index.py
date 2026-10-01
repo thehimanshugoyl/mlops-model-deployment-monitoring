@@ -1,74 +1,135 @@
+import json
 import logging
 from pathlib import Path
 import sys
-import urllib.parse
-from starlette.types import ASGIApp, Receive, Scope, Send
+from fastapi import BackgroundTasks, Request
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+from starlette.responses import JSONResponse
 
 # Add project root to sys.path so modules in src/ and artifacts/ are discovered
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.app import app, load_or_initialize_model
+from src.app import (  # noqa: E402
+    app,
+    health,
+    liveness,
+    metrics,
+    get_drift,
+    reset_drift_buffer,
+    predict,
+    predict_batch,
+    root,
+    load_or_initialize_model,
+    LoanApplication,
+    LoanApplicationBatch,
+)
 
 logger = logging.getLogger("vercel_entrypoint")
 
-# Initialize model and drift detector at serverless startup
+# Initialize model and drift detector at cold start
 try:
     load_or_initialize_model()
 except Exception as e:
-    logger.warning("Could not initialize model at import time: %s", e)
+    logger.warning("Cold start model load warning: %s", e)
 
 
-class VercelPathNormalizerMiddleware:
+def resolve_requested_path(request: Request) -> str:
     """
-    Normalizes ASGI scope path on Vercel so that rewrites correctly map
-    to FastAPI routes including /docs, /metrics, /health, /predict, etc.
+    Resolves the intended client path whether rewritten via _vercel_path query param,
+    x-matched-path header, or raw request path.
     """
+    # 1. Query parameter _vercel_path (highest precision from vercel.json)
+    vp = request.query_params.get("_vercel_path")
+    if vp:
+        return vp.split("?")[0]
 
-    def __init__(self, asgi_app: ASGIApp):
-        self.app = asgi_app
+    # 2. Vercel CDN x-matched-path header
+    mp = request.headers.get("x-matched-path")
+    if mp:
+        cleaned = mp.split("?")[0]
+        if not cleaned.endswith(".py") and not cleaned.startswith("/api/index"):
+            return cleaned
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] == "http":
-            # 1. Check for query parameter _vercel_path (deterministic rewrite routing)
-            qs = scope.get("query_string", b"").decode("utf-8")
-            if "_vercel_path=" in qs:
-                params = urllib.parse.parse_qs(qs)
-                if "_vercel_path" in params and params["_vercel_path"]:
-                    resolved_path = params["_vercel_path"][0]
-                    scope["path"] = resolved_path
-                    scope["raw_path"] = resolved_path.encode("utf-8")
-                    # Clean _vercel_path out of query string
-                    filtered_params = {
-                        k: v for k, v in params.items() if k != "_vercel_path"
-                    }
-                    new_qs = urllib.parse.urlencode(filtered_params, doseq=True)
-                    scope["query_string"] = new_qs.encode("utf-8")
+    # 3. Path from request url
+    path = request.url.path
+    if path.startswith("/api/") and not path.startswith("/api/index"):
+        return path[4:]  # strip /api
 
-            # 2. Check x-matched-path header from Vercel CDN
-            headers = dict(scope.get("headers", []))
-            matched_path = headers.get(b"x-matched-path")
-            current_path = scope.get("path", "")
-            if matched_path and current_path in (
-                "/api/index.py",
-                "/api/index",
-                "/api/index/",
-                "",
-            ):
-                decoded = matched_path.decode("utf-8").split("?")[0]
-                if not decoded.endswith(".py") and not decoded.startswith("/api/index"):
-                    scope["path"] = decoded
-                    scope["raw_path"] = decoded.encode("utf-8")
-
-            # 3. Strip /api/ prefix if present so /api/docs -> /docs, /api/metrics -> /metrics
-            p = scope.get("path", "")
-            if p.startswith("/api/") and not p.startswith("/api/index"):
-                stripped = p[4:]  # remove '/api'
-                scope["path"] = stripped
-                scope["raw_path"] = stripped.encode("utf-8")
-
-        await self.app(scope, receive, send)
+    return path
 
 
-app.add_middleware(VercelPathNormalizerMiddleware)
+@app.get("/api/index.py", include_in_schema=False)
+@app.get("/api/index", include_in_schema=False)
+@app.get("/api", include_in_schema=False)
+async def vercel_entrypoint_get(request: Request):
+    """
+    Catches Vercel serverless function entrypoint GET requests and dispatches to
+    the appropriate endpoint handler based on rewritten path.
+    """
+    target = resolve_requested_path(request)
+
+    if target in ("/docs", "/api/docs"):
+        return get_swagger_ui_html(
+            openapi_url="/openapi.json",
+            title="MLOps Credit Default Risk Predictor - Swagger UI",
+        )
+
+    if target in ("/openapi.json", "/api/openapi.json"):
+        return JSONResponse(
+            content=get_openapi(
+                title=app.title,
+                version=app.version,
+                openapi_version=app.openapi_version,
+                description=app.description,
+                routes=app.routes,
+            )
+        )
+
+    if target in ("/metrics", "/api/metrics"):
+        return metrics()
+
+    if target in ("/health", "/api/health"):
+        return health()
+
+    if target in ("/live", "/api/live"):
+        return liveness()
+
+    if target in ("/drift", "/api/drift"):
+        return get_drift()
+
+    return root()
+
+
+@app.post("/api/index.py", include_in_schema=False)
+@app.post("/api/index", include_in_schema=False)
+@app.post("/api", include_in_schema=False)
+async def vercel_entrypoint_post(request: Request, background_tasks: BackgroundTasks):
+    """
+    Catches Vercel serverless function entrypoint POST requests and dispatches
+    to inference or drift management.
+    """
+    target = resolve_requested_path(request)
+
+    if target in ("/drift/reset", "/api/drift/reset"):
+        return reset_drift_buffer()
+
+    body_bytes = await request.body()
+    if not body_bytes:
+        return JSONResponse(status_code=400, content={"detail": "Empty body"})
+
+    try:
+        data = json.loads(body_bytes.decode("utf-8"))
+    except Exception as e:
+        return JSONResponse(
+            status_code=400, content={"detail": f"Invalid JSON payload: {e}"}
+        )
+
+    if "applications" in data:
+        batch = LoanApplicationBatch(**data)
+        return predict_batch(batch, background_tasks)
+
+    app_single = LoanApplication(**data)
+    return predict(app_single, background_tasks)
