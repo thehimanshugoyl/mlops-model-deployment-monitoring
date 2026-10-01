@@ -35,7 +35,9 @@ def test_calculate_psi_significant_drift():
 
 def test_drift_detector_insufficient_samples():
     df = generate_synthetic_data(n_samples=500, random_state=42)
-    detector = DriftDetector(reference_df=df, feature_names=FEATURE_NAMES, min_samples_to_evaluate=30)
+    detector = DriftDetector(
+        reference_df=df, feature_names=FEATURE_NAMES, min_samples_to_evaluate=30
+    )
 
     # Initially buffer is empty
     report = detector.evaluate_drift()

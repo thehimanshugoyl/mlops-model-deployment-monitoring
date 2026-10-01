@@ -35,7 +35,7 @@ jobs:
 
       - name: Code Formatting Check (Black)
         run: |
-          black --check src tests scripts
+          black --check src tests scripts api
 
       - name: Syntax & Style Linting (Flake8)
         run: |
@@ -135,7 +135,7 @@ jobs:
       - name: Container Smoke Test (Healthcheck)
         run: |
           docker run -d --name smoke-test -p 8000:8000 ml-credit-service:latest
-          sleep 5
+          sleep 8
           curl --fail http://localhost:8000/live || exit 1
           curl --fail http://localhost:8000/health || exit 1
           docker stop smoke-test && docker rm smoke-test

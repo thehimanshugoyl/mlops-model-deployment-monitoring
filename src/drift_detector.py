@@ -17,7 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_psi(
-    reference: np.ndarray, current: np.ndarray, num_bins: int = 10, epsilon: float = 1e-4
+    reference: np.ndarray,
+    current: np.ndarray,
+    num_bins: int = 10,
+    epsilon: float = 1e-4,
 ) -> float:
     """
     Calculate the Population Stability Index (PSI) between reference and current samples.
@@ -146,7 +149,9 @@ class DriftDetector:
             # Normalize by ref standard deviation to make distance scale-invariant
             ref_std = np.std(ref_vals)
             std_norm = ref_std if ref_std > 1e-6 else 1.0
-            w_dist = float(np.round(wasserstein_distance(ref_vals, curr_vals) / std_norm, 4))
+            w_dist = float(
+                np.round(wasserstein_distance(ref_vals, curr_vals) / std_norm, 4)
+            )
 
             # Drift is flagged if KS p-value is below threshold or PSI >= 0.2
             is_drifted = (p_val < self.p_value_threshold) or (psi_val >= 0.2)

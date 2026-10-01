@@ -39,7 +39,9 @@ FEATURE_NAMES = [
 TARGET_NAME = "loan_default"
 
 
-def generate_synthetic_data(n_samples: int = 5000, random_state: int = 42) -> pd.DataFrame:
+def generate_synthetic_data(
+    n_samples: int = 5000, random_state: int = 42
+) -> pd.DataFrame:
     """
     Generate a realistic credit default dataset with known distributions.
     This serves as our baseline/training dataset.
@@ -50,7 +52,9 @@ def generate_synthetic_data(n_samples: int = 5000, random_state: int = 42) -> pd
     annual_income = np.clip(rng.normal(65000, 22000, size=n_samples), 18000, 250000)
     credit_score = np.clip(rng.normal(680, 75, size=n_samples), 350, 850).astype(int)
     loan_amount = np.clip(rng.normal(20000, 9000, size=n_samples), 2000, 60000)
-    loan_tenure_months = rng.choice([12, 24, 36, 48, 60], size=n_samples, p=[0.1, 0.2, 0.4, 0.2, 0.1])
+    loan_tenure_months = rng.choice(
+        [12, 24, 36, 48, 60], size=n_samples, p=[0.1, 0.2, 0.4, 0.2, 0.1]
+    )
     debt_to_income_ratio = np.clip(rng.beta(2, 5, size=n_samples) * 0.7, 0.05, 0.85)
     employment_years = np.clip(rng.exponential(5, size=n_samples), 0, 35)
     has_prior_default = rng.binomial(1, 0.12, size=n_samples)

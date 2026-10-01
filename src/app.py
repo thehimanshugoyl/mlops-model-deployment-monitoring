@@ -40,7 +40,9 @@ from src.monitoring import (
     update_prometheus_drift_metrics,
 )
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 logger = logging.getLogger("ml_service")
 
 # Directory paths
@@ -64,7 +66,9 @@ def load_or_initialize_model():
     global model_pipeline, drift_detector, model_metadata
 
     if not MODEL_PATH.exists() or not REF_DATA_PATH.exists():
-        logger.warning("Model artifacts not found in %s. Training baseline model...", ARTIFACTS_DIR)
+        logger.warning(
+            "Model artifacts not found in %s. Training baseline model...", ARTIFACTS_DIR
+        )
         df = generate_synthetic_data(n_samples=5000, random_state=42)
         pipeline, metrics, X_train, _ = train_model(df)
         save_artifacts(pipeline, X_train, metrics, ARTIFACTS_DIR, version="1.0.0")
@@ -88,7 +92,10 @@ def load_or_initialize_model():
         window_size=window_size,
         min_samples_to_evaluate=min_samples,
     )
-    logger.info("Model and DriftDetector initialized successfully. Buffer maxlen=%d", window_size)
+    logger.info(
+        "Model and DriftDetector initialized successfully. Buffer maxlen=%d",
+        window_size,
+    )
 
 
 @asynccontextmanager
@@ -106,14 +113,60 @@ app = FastAPI(
 
 
 class LoanApplication(BaseModel):
-    age: int = Field(..., ge=18, le=100, json_schema_extra={"example": 35}, description="Applicant age in years")
-    annual_income: float = Field(..., gt=0, json_schema_extra={"example": 75000.0}, description="Annual gross income in USD")
-    credit_score: int = Field(..., ge=300, le=850, json_schema_extra={"example": 710}, description="FICO/Bureau credit score")
-    loan_amount: float = Field(..., gt=0, json_schema_extra={"example": 18000.0}, description="Requested loan amount in USD")
-    loan_tenure_months: int = Field(..., ge=6, le=120, json_schema_extra={"example": 36}, description="Loan term in months")
-    debt_to_income_ratio: float = Field(..., ge=0.0, le=2.0, json_schema_extra={"example": 0.28}, description="Debt to income ratio (0-2)")
-    employment_years: float = Field(..., ge=0.0, le=60.0, json_schema_extra={"example": 6.5}, description="Years in continuous employment")
-    has_prior_default: int = Field(..., ge=0, le=1, json_schema_extra={"example": 0}, description="1 if applicant defaulted before, else 0")
+    age: int = Field(
+        ...,
+        ge=18,
+        le=100,
+        json_schema_extra={"example": 35},
+        description="Applicant age in years",
+    )
+    annual_income: float = Field(
+        ...,
+        gt=0,
+        json_schema_extra={"example": 75000.0},
+        description="Annual gross income in USD",
+    )
+    credit_score: int = Field(
+        ...,
+        ge=300,
+        le=850,
+        json_schema_extra={"example": 710},
+        description="FICO/Bureau credit score",
+    )
+    loan_amount: float = Field(
+        ...,
+        gt=0,
+        json_schema_extra={"example": 18000.0},
+        description="Requested loan amount in USD",
+    )
+    loan_tenure_months: int = Field(
+        ...,
+        ge=6,
+        le=120,
+        json_schema_extra={"example": 36},
+        description="Loan term in months",
+    )
+    debt_to_income_ratio: float = Field(
+        ...,
+        ge=0.0,
+        le=2.0,
+        json_schema_extra={"example": 0.28},
+        description="Debt to income ratio (0-2)",
+    )
+    employment_years: float = Field(
+        ...,
+        ge=0.0,
+        le=60.0,
+        json_schema_extra={"example": 6.5},
+        description="Years in continuous employment",
+    )
+    has_prior_default: int = Field(
+        ...,
+        ge=0,
+        le=1,
+        json_schema_extra={"example": 0},
+        description="1 if applicant defaulted before, else 0",
+    )
 
 
 class LoanApplicationBatch(BaseModel):
@@ -121,8 +174,12 @@ class LoanApplicationBatch(BaseModel):
 
 
 class PredictionResult(BaseModel):
-    prediction: int = Field(..., description="0 = No Default (Approved), 1 = Default (High Risk)")
-    default_probability: float = Field(..., description="Estimated probability of default")
+    prediction: int = Field(
+        ..., description="0 = No Default (Approved), 1 = Default (High Risk)"
+    )
+    default_probability: float = Field(
+        ..., description="Estimated probability of default"
+    )
     risk_level: str = Field(..., description="Low, Medium, or High risk tier")
     model_version: str
 
@@ -140,7 +197,9 @@ def load_or_initialize_model():
     global model_pipeline, drift_detector, model_metadata
 
     if not MODEL_PATH.exists() or not REF_DATA_PATH.exists():
-        logger.warning("Model artifacts not found in %s. Training baseline model...", ARTIFACTS_DIR)
+        logger.warning(
+            "Model artifacts not found in %s. Training baseline model...", ARTIFACTS_DIR
+        )
         df = generate_synthetic_data(n_samples=5000, random_state=42)
         pipeline, metrics, X_train, _ = train_model(df)
         save_artifacts(pipeline, X_train, metrics, ARTIFACTS_DIR, version="1.0.0")
@@ -164,9 +223,10 @@ def load_or_initialize_model():
         window_size=window_size,
         min_samples_to_evaluate=min_samples,
     )
-    logger.info("Model and DriftDetector initialized successfully. Buffer maxlen=%d", window_size)
-
-
+    logger.info(
+        "Model and DriftDetector initialized successfully. Buffer maxlen=%d",
+        window_size,
+    )
 
 
 @app.middleware("http")
@@ -206,7 +266,9 @@ def health():
     Readiness and health inspection endpoint.
     """
     if model_pipeline is None or drift_detector is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model not loaded")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model not loaded"
+        )
 
     buf_size = drift_detector.get_buffer_size()
     BUFFER_SIZE.set(buf_size)
@@ -260,7 +322,9 @@ def predict(
     """
     Predict loan default risk for a single applicant and buffer feature data for drift detection.
     """
-    return predict_batch(LoanApplicationBatch(applications=[application]), background_tasks)
+    return predict_batch(
+        LoanApplicationBatch(applications=[application]), background_tasks
+    )
 
 
 @app.post("/predict/batch", response_model=PredictionResponse, tags=["Inference"])

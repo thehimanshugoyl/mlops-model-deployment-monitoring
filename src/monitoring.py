@@ -128,7 +128,9 @@ def update_prometheus_drift_metrics(drift_report: Dict[str, Any]) -> None:
 
     features = drift_report.get("features", {})
     for feat_name, feat_data in features.items():
-        FEATURE_DRIFT_DETECTED.labels(feature=feat_name).set(1.0 if feat_data["drift_detected"] else 0.0)
+        FEATURE_DRIFT_DETECTED.labels(feature=feat_name).set(
+            1.0 if feat_data["drift_detected"] else 0.0
+        )
         FEATURE_DRIFT_P_VALUE.labels(feature=feat_name).set(feat_data["p_value"])
         FEATURE_DRIFT_KS_STAT.labels(feature=feat_name).set(feat_data["ks_statistic"])
         FEATURE_DRIFT_PSI.labels(feature=feat_name).set(feat_data["psi"])

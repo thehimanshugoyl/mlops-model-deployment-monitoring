@@ -19,14 +19,18 @@ try:
 except Exception:
     pass
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 logger = logging.getLogger("traffic_simulator")
 
 # Persistent HTTP session with keep-alive
 session = requests.Session()
 
 
-def send_prediction(host: str, sample: Dict[str, Any], max_retries: int = 3) -> Dict[str, Any]:
+def send_prediction(
+    host: str, sample: Dict[str, Any], max_retries: int = 3
+) -> Dict[str, Any]:
     global session
     url = f"{host.rstrip('/')}/predict"
     for attempt in range(max_retries):
@@ -96,7 +100,9 @@ def generate_drifted_sample() -> Dict[str, Any]:
     credit_score = int(max(300, min(680, random.gauss(520, 60))))  # Credit degradation
     loan_amount = round(max(5000.0, random.gauss(32000, 12000)), 2)  # Higher borrowing
     loan_tenure = random.choice([36, 48, 60])
-    debt_to_income = round(max(0.40, min(1.20, random.gauss(0.65, 0.15))), 4)  # High leverage
+    debt_to_income = round(
+        max(0.40, min(1.20, random.gauss(0.65, 0.15))), 4
+    )  # High leverage
     employment_years = round(min(10.0, random.expovariate(1 / 1.5)), 1)
     has_prior_default = 1 if random.random() < 0.45 else 0
 
@@ -112,19 +118,28 @@ def generate_drifted_sample() -> Dict[str, Any]:
     }
 
 
-
-
 def main():
-    parser = argparse.ArgumentParser(description="Simulate Traffic & Drift for ML Service")
-    parser.add_argument("--host", type=str, default="http://localhost:8000", help="Base URL of ML service")
+    parser = argparse.ArgumentParser(
+        description="Simulate Traffic & Drift for ML Service"
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="http://localhost:8000",
+        help="Base URL of ML service",
+    )
     parser.add_argument(
         "--mode",
         choices=["normal", "drifted", "scenario", "continuous"],
         default="scenario",
         help="Traffic mode to run",
     )
-    parser.add_argument("--requests", type=int, default=60, help="Number of requests per phase")
-    parser.add_argument("--delay", type=float, default=0.05, help="Delay between requests in seconds")
+    parser.add_argument(
+        "--requests", type=int, default=60, help="Number of requests per phase"
+    )
+    parser.add_argument(
+        "--delay", type=float, default=0.05, help="Delay between requests in seconds"
+    )
     args = parser.parse_args()
 
     logger.info("Connecting to model service at %s", args.host)
@@ -141,9 +156,15 @@ def main():
             sample = generate_normal_sample()
             res = send_prediction(args.host, sample)
             pred = res["results"][0]
-            logger.info("[%d/%d] Normal -> Pred: %d, Prob: %.3f, Risk: %s, Latency: %.1fms",
-                        i + 1, args.requests, pred["prediction"], pred["default_probability"],
-                        pred["risk_level"], res["latency_ms"])
+            logger.info(
+                "[%d/%d] Normal -> Pred: %d, Prob: %.3f, Risk: %s, Latency: %.1fms",
+                i + 1,
+                args.requests,
+                pred["prediction"],
+                pred["default_probability"],
+                pred["risk_level"],
+                res["latency_ms"],
+            )
             time.sleep(args.delay)
 
     elif args.mode == "drifted":
@@ -152,9 +173,15 @@ def main():
             sample = generate_drifted_sample()
             res = send_prediction(args.host, sample)
             pred = res["results"][0]
-            logger.info("[%d/%d] Drifted -> Pred: %d, Prob: %.3f, Risk: %s, Latency: %.1fms",
-                        i + 1, args.requests, pred["prediction"], pred["default_probability"],
-                        pred["risk_level"], res["latency_ms"])
+            logger.info(
+                "[%d/%d] Drifted -> Pred: %d, Prob: %.3f, Risk: %s, Latency: %.1fms",
+                i + 1,
+                args.requests,
+                pred["prediction"],
+                pred["default_probability"],
+                pred["risk_level"],
+                res["latency_ms"],
+            )
             time.sleep(args.delay)
 
     elif args.mode == "scenario":
@@ -167,35 +194,48 @@ def main():
             time.sleep(args.delay)
 
         baseline_drift = check_drift_status(args.host)
-        logger.info("Phase 1 Baseline Drift Result: Detected=%s (Drift share: %.1f%%, Drifted features: %d)",
-                    baseline_drift.get("dataset_drift_detected"),
-                    baseline_drift.get("drift_share", 0.0) * 100,
-                    baseline_drift.get("drifted_features_count", 0))
+        logger.info(
+            "Phase 1 Baseline Drift Result: Detected=%s (Drift share: %.1f%%, Drifted features: %d)",
+            baseline_drift.get("dataset_drift_detected"),
+            baseline_drift.get("drift_share", 0.0) * 100,
+            baseline_drift.get("drifted_features_count", 0),
+        )
 
-        logger.info("=== SCENARIO MODE: Phase 2 (Injecting Statistical Drift - 45 requests) ===")
+        logger.info(
+            "=== SCENARIO MODE: Phase 2 (Injecting Statistical Drift - 45 requests) ==="
+        )
         for i in range(45):
             sample = generate_drifted_sample()
             res = send_prediction(args.host, sample)
             time.sleep(args.delay)
 
         drifted_report = check_drift_status(args.host)
-        logger.info("Phase 2 Drift Result: Detected=%s (Drift share: %.1f%%, Drifted features: %d)",
-                    drifted_report.get("dataset_drift_detected"),
-                    drifted_report.get("drift_share", 0.0) * 100,
-                    drifted_report.get("drifted_features_count", 0))
+        logger.info(
+            "Phase 2 Drift Result: Detected=%s (Drift share: %.1f%%, Drifted features: %d)",
+            drifted_report.get("dataset_drift_detected"),
+            drifted_report.get("drift_share", 0.0) * 100,
+            drifted_report.get("drifted_features_count", 0),
+        )
 
         logger.info("--- Feature Breakdown ---")
         for feat, data in drifted_report.get("features", {}).items():
             status_str = "DRIFT DETECTED" if data["drift_detected"] else "STABLE"
-            logger.info("  %-22s : %-15s (KS p-val: %.4f, PSI: %.3f, Ref Mean: %.2f -> Curr Mean: %.2f)",
-                        feat, status_str, data["p_value"], data["psi"], data["ref_mean"], data["curr_mean"])
+            logger.info(
+                "  %-22s : %-15s (KS p-val: %.4f, PSI: %.3f, Ref Mean: %.2f -> Curr Mean: %.2f)",
+                feat,
+                status_str,
+                data["p_value"],
+                data["psi"],
+                data["ref_mean"],
+                data["curr_mean"],
+            )
 
     elif args.mode == "continuous":
         logger.info("Starting continuous simulation loop (Ctrl+C to terminate)...")
         iteration = 0
         while True:
             iteration += 1
-            is_drift = (iteration % 4 == 0)  # Drift every 4th batch
+            is_drift = iteration % 4 == 0  # Drift every 4th batch
             generator = generate_drifted_sample if is_drift else generate_normal_sample
             tag = "DRIFTED" if is_drift else "NORMAL"
             logger.info("Iteration %d: Sending 10 %s requests...", iteration, tag)
@@ -205,10 +245,12 @@ def main():
                 time.sleep(args.delay)
 
             drift_info = check_drift_status(args.host)
-            logger.info("Status: Dataset Drift = %s, Drifted Features = %d/%d",
-                        drift_info.get("dataset_drift_detected"),
-                        drift_info.get("drifted_features_count", 0),
-                        drift_info.get("total_features", 0))
+            logger.info(
+                "Status: Dataset Drift = %s, Drifted Features = %d/%d",
+                drift_info.get("dataset_drift_detected"),
+                drift_info.get("drifted_features_count", 0),
+                drift_info.get("total_features", 0),
+            )
             time.sleep(1.0)
 
 
