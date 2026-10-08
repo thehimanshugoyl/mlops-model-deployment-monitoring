@@ -142,31 +142,92 @@ def main():
         s.right_margin = Inches(1.0)
 
     # -------------------------------------------------------------
-    # Cover / Header Title Block
+    # Formal Academic Cover Page / Header
     # -------------------------------------------------------------
+    inst_p = doc.add_paragraph()
+    inst_p.paragraph_format.space_before = Pt(8)
+    inst_p.paragraph_format.space_after = Pt(2)
+    inst_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_inst = inst_p.add_run("APEX INSTITUTE OF TECHNOLOGY (AIT)\nDEPARTMENT OF COMPUTER SCIENCE & ENGINEERING")
+    r_inst.font.name = "Calibri"
+    r_inst.font.size = Pt(13)
+    r_inst.font.bold = True
+    r_inst.font.color.rgb = COLOR_ROYAL
+
+    course_p = doc.add_paragraph()
+    course_p.paragraph_format.space_before = Pt(4)
+    course_p.paragraph_format.space_after = Pt(22)
+    course_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_course = course_p.add_run("DATA ENGINEERING II ― CAPSTONE PROJECT REPORT")
+    r_course.font.name = "Calibri"
+    r_course.font.size = Pt(11)
+    r_course.font.bold = True
+    r_course.font.color.rgb = COLOR_SLATE
+
     title_p = doc.add_paragraph()
     title_p.paragraph_format.space_before = Pt(12)
-    title_p.paragraph_format.space_after = Pt(4)
-    run_title = title_p.add_run("MLOps Engineering & Observability Report")
+    title_p.paragraph_format.space_after = Pt(8)
+    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_title = title_p.add_run("End-to-End MLOps Pipeline: Automated Model Deployment, Containerization with Kubernetes, & Real-Time Observability")
     run_title.font.name = "Calibri"
-    run_title.font.size = Pt(26)
+    run_title.font.size = Pt(22)
     run_title.font.bold = True
     run_title.font.color.rgb = COLOR_NAVY
 
     sub_p = doc.add_paragraph()
-    sub_p.paragraph_format.space_after = Pt(18)
-    run_sub = sub_p.add_run("Automated Model Deployment, Kubernetes Containerization, and Real-Time Statistical Drift Detection")
+    sub_p.paragraph_format.space_after = Pt(24)
+    sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_sub = sub_p.add_run("Credit Default Risk Prediction • Kolmogorov-Smirnov & PSI Drift Engine • Prometheus & Grafana Telemetry")
     run_sub.font.name = "Calibri"
-    run_sub.font.size = Pt(13)
+    run_sub.font.size = Pt(11.5)
     run_sub.font.italic = True
     run_sub.font.color.rgb = COLOR_SLATE
 
-    # Add dividing rule
-    divider_p = doc.add_paragraph()
-    divider_p.paragraph_format.space_after = Pt(14)
-    r_div = divider_p.add_run("―" * 58)
-    r_div.font.color.rgb = RGBColor(203, 213, 225)
-    r_div.font.bold = True
+    # Academic Credentials Box (Table)
+    cred_table = doc.add_table(rows=6, cols=2)
+    cred_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    cred_data = [
+        ("Student Name", "HIMANSHU GOYAL"),
+        ("UID", "24BDA70369"),
+        ("Class / Section", "24BDS 4NTPP"),
+        ("Course / Subject", "Data Engineering II"),
+        ("Department", "AIT - CSE Department"),
+        ("Faculty Evaluator / Mentor", "Mr. Deepak Kumar"),
+    ]
+
+    for row_idx, (label, val) in enumerate(cred_data):
+        c0 = cred_table.cell(row_idx, 0)
+        c1 = cred_table.cell(row_idx, 1)
+        c0.width = Inches(2.5)
+        c1.width = Inches(4.0)
+
+        set_cell_background(c0, "1E3A8A" if row_idx == 0 else "F1F5F9")
+        set_cell_background(c1, "2563EB" if row_idx == 0 else "FFFFFF")
+        set_cell_margins(c0, top=90, bottom=90, left=140, right=140)
+        set_cell_margins(c1, top=90, bottom=90, left=140, right=140)
+
+        p0 = c0.paragraphs[0]
+        p0.paragraph_format.space_before = Pt(2)
+        p0.paragraph_format.space_after = Pt(2)
+        r0 = p0.add_run(label)
+        r0.font.name = "Calibri"
+        r0.font.size = Pt(10)
+        r0.font.bold = True
+        r0.font.color.rgb = RGBColor(255, 255, 255) if row_idx == 0 else COLOR_NAVY
+
+        p1 = c1.paragraphs[0]
+        p1.paragraph_format.space_before = Pt(2)
+        p1.paragraph_format.space_after = Pt(2)
+        r1 = p1.add_run(val)
+        r1.font.name = "Calibri"
+        r1.font.size = Pt(10)
+        r1.font.bold = True
+        r1.font.color.rgb = RGBColor(255, 255, 255) if row_idx == 0 else COLOR_BODY
+
+    # Space and Page Break for clean formal start
+    doc.add_paragraph().paragraph_format.space_after = Pt(18)
+    doc.add_page_break()
+
 
     # Parse lines of markdown
     lines = content.splitlines()

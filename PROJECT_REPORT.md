@@ -3,7 +3,20 @@
 
 ---
 
-### Project Metadata & Quick Links
+### Academic & Candidate Credentials
+
+| Parameter | Details |
+|---|---|
+| **Student Name** | **HIMANSHU GOYAL** |
+| **UID** | **24BDA70369** |
+| **Section** | **24BDS 4NTPP** |
+| **Course / Subject** | **Data Engineering II** |
+| **Department** | **AIT - CSE Department** |
+| **Faculty Evaluator** | **Mr. Deepak Kumar** |
+
+---
+
+### Project Links & Specifications
 
 - **Project Title**: End-to-End MLOps Pipeline for Credit Default Risk Prediction & Real-Time Observability
 - **Domain**: Machine Learning Operations (MLOps), Distributed Systems, Cloud Computing
@@ -14,6 +27,7 @@
 - **CI/CD Pipeline Status**: 100% Passing (5/5 Green Checkmarks on GitHub Actions)
 
 ---
+
 
 ## 1. Executive Summary
 
